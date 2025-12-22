@@ -33,11 +33,19 @@ struct arena {
     }
 
     T *alloc() {
-        if (size >= cap) {
+        return alloc(1);
+    }
+
+    T *alloc(size_t count) {
+        size += count;
+        if (size > cap) {
+            size -= count;
             log::fatalf("Arena reached max capacity (%li)", cap);
         }
-        size++;
-        tail++;
-        return tail - 1;
+
+        T *ptr = tail;
+        tail += count;
+
+        return ptr;
     }
 };

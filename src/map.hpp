@@ -1,0 +1,113 @@
+#pragma once
+
+#include "arena.hpp"
+#include "global.hpp"
+
+#include <functional>
+
+template <typename TKey, typename TValue>
+struct map_node {
+    bool is_init;
+    bool is_leaf;
+
+    union {
+        struct {
+            TKey   key;
+            TValue value;
+        } leaf;
+
+        map_node<TKey, TValue> *buckets;
+    };
+};
+
+static constexpr size_t N_BUCKETS = 256;
+
+template <typename TKey, typename TValue>
+struct map {
+    arena<map_node<TKey, TValue>> arena;
+    map_node<TKey, TValue>       *buckets;
+
+    static constexpr size_t arena_max = 1024 * 1024 * 1024;
+
+    map() : arena(arena_max)
+    {
+        buckets = arena.alloc(N_BUCKETS);
+    }
+
+    void add(TKey key, TValue value)
+    {
+        auto hash = std::hash<TKey>{}(key);
+        bucket_add(key, value, hash, 0, buckets);
+    }
+
+    void bucket_add(TKey key, TValue value, size_t hash, int depth, map_node<TKey, TValue> *bucket)
+    {
+        if (depth >= 8) {
+            log::fatalf("not implemented: full u64 hash match");
+            return;
+        }
+
+        u8 hpart = (hash >> (8 * depth)) & 0xFF;
+
+        auto node = bucket + hpart;
+
+        if (!node->is_init) {
+            node->is_init    = true;
+            node->is_leaf    = true;
+            node->leaf.key   = key;
+            node->leaf.value = value;
+            return;
+        }
+
+        if (node->is_leaf) {
+            if (node->leaf.key == key) {
+                log::fatalf("Attempt to add duplicate key");
+                return;
+            }
+
+            auto new_bucket = arena.alloc(N_BUCKETS);
+            bucket_add(node->leaf.key,
+                       node->leaf.value,
+                       std::hash<TKey>{}(node->leaf.key),
+                       depth + 1,
+                       new_bucket);
+
+            node->is_leaf = false;
+            node->buckets = new_bucket;
+        }
+
+        bucket_add(key, value, hash, depth + 1, node->buckets);
+    }
+
+    bool try_get(TKey key, TValue *value)
+    {
+        auto hash = std::hash<TKey>{}(key);
+        return bucket_get(key, value, hash, 0, buckets);
+    }
+
+    bool bucket_get(TKey key, TValue *value, size_t hash, int depth, map_node<TKey, TValue> *bucket)
+    {
+        if (depth >= 8) {
+            log::fatalf("not implemented: full u64 hash match");
+            return false;
+        }
+
+        u8 hpart = (hash >> (8 * depth)) & 0xFF;
+
+        auto node = bucket + hpart;
+
+        if (!node->is_init) {
+            return false;
+        }
+
+        if (node->is_leaf) {
+            if (node->leaf.key == key) {
+                *value = node->leaf.value;
+                return true;
+            }
+            return false;
+        }
+
+        return bucket_get(key, value, hash, depth + 1, node->buckets);
+    }
+};

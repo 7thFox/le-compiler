@@ -1,9 +1,21 @@
 #pragma once
 
+#include "arena.hpp"
+#include "basic-block.hpp"
 #include "ir.hpp"
+#include "map.hpp"
 
-namespace backend {
+namespace backend
+{
 struct interp {
-    void exec(ir::ssa *inst, size_t len);
+
+    map<ir::ssa *, u64> ssa_values;
+
+    interp() : ssa_values()
+    {
+    }
+
+    void exec(bb *block);
+    bb  *_exec(bb *block);
 };
 }

@@ -21,3 +21,4 @@ AlignAfterOpenBracket: true
 AllowAllArgumentsOnNextLine: false
 BinPackArguments: false
 BreakTemplateDeclarations: Yes
+BreakBeforeBraces: Linux

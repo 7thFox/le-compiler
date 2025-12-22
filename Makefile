@@ -7,7 +7,8 @@ CXXFLAGS := -std=c++20 \
 	-fno-exceptions \
 	-fno-rtti\
 	-Wno-missing-designated-field-initializers\
-	-Wno-multichar
+	-Wno-multichar \
+	-Wno-reorder-init-list
 
 # Directories
 SRC_DIR := src
