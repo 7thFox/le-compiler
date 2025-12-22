@@ -1,0 +1,23 @@
+IndentWidth: 4
+ColumnLimit: 100
+AlignConsecutiveDeclarations: true
+FixNamespaceComments: false
+AllowShortFunctionsOnASingleLine: None
+SeparateDefinitionBlocks: Always
+AlignArrayOfStructures: Right
+AlignConsecutiveAssignments: Consecutive
+AlignEscapedNewlines: LeftWithLastLine
+AlignOperands: Align
+AlignConsecutiveShortCaseStatements:
+  Enabled: true
+  AcrossEmptyLines: true
+  AcrossComments: true
+  AlignCaseColons: false
+SortIncludes:
+  Enabled: true
+  IgnoreCase: true
+IncludeBlocks: Regroup
+AlignAfterOpenBracket: true
+AllowAllArgumentsOnNextLine: false
+BinPackArguments: false
+BreakTemplateDeclarations: Yes
