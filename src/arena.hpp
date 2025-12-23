@@ -3,6 +3,7 @@
 
 #include "log.hpp"
 
+#include <cstring>
 #include <sys/mman.h>
 
 template <typename T>
@@ -12,7 +13,8 @@ struct arena {
     size_t cap;
     size_t size;
 
-    arena(size_t max_capacity) {
+    arena(size_t max_capacity)
+    {
         cap  = max_capacity;
         size = 0;
 
@@ -26,17 +28,20 @@ struct arena {
         head = tail = static_cast<T *>(ptr);
     }
 
-    ~arena() {
+    ~arena()
+    {
         head = tail = nullptr;
         cap = size = 0;
         munmap(head, cap * sizeof(T));
     }
 
-    T *alloc() {
+    T *alloc()
+    {
         return alloc(1);
     }
 
-    T *alloc(size_t count) {
+    T *alloc(size_t count)
+    {
         size += count;
         if (size > cap) {
             size -= count;
