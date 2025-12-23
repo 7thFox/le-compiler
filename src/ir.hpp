@@ -21,6 +21,7 @@ inline ssa_prop operator|(ssa_prop lhs, ssa_prop rhs)
 
 enum class opcode : u32 {
     nop = 'PON',
+    phi = 'IHP',
 
     // CONSTS
     i = '46I',
@@ -31,7 +32,7 @@ enum class opcode : u32 {
     div = 'VID',
 
     // branches
-    breq = 'QERB',
+    ret = 'TER',
 
     dbg = 'GBD', // SCAFFOLDING
 };
@@ -39,17 +40,17 @@ enum class opcode : u32 {
 struct ssa {
     opcode   op;
     ssa_prop flags;
-    void    *true_block;
-    void    *false_block;
 
     union {
-        u64  i;
-        ssa *ssa;
+        u64       i;
+        ir::ssa  *ssa;
+        ir::ssa **ssa_list;
     } left;
 
     union {
-        u64  i;
-        ssa *ssa;
+        u64      i;
+        ir::ssa *ssa;
+        size_t   count;
     } right;
 };
 

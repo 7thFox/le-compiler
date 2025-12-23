@@ -7,6 +7,11 @@
 
 namespace backend
 {
+struct block_context {
+    bb      *block;
+    ir::ssa *return_value;
+};
+
 struct interp {
 
     map<ir::ssa *, u64> ssa_values;
@@ -16,6 +21,6 @@ struct interp {
     }
 
     void exec(bb *block);
-    bb  *_exec(bb *block);
+    void _exec(block_context &ctx);
 };
 }

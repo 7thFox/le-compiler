@@ -1,17 +1,25 @@
+#pragma once
+
 #include "basic-block.hpp"
 #include "ir.hpp"
 
 namespace ir
 {
+
+constexpr size_t PARTIAL_PHI_MAX = 256;
+
 struct builder {
 
-    arena<bb>      blocks;
-    arena<ir::ssa> ssas;
+    arena<bb>        blocks    = (1000000);
+    arena<ir::ssa>   ssas      = (1000000);
+    arena<ir::ssa *> phi_lists = (1000000);
 
-    bb  *current_block = NULL;
-    bool has_terminal  = false;
+    bb *current_block = NULL;
 
-    builder() : blocks(1000000), ssas(1000000)
+    ir::ssa *current_phi[PARTIAL_PHI_MAX];
+    size_t   phi_count = 0;
+
+    builder()
     {
     }
 
@@ -31,25 +39,69 @@ struct builder {
         assert(current_block == NULL);
 
         current_block       = block;
-        has_terminal        = false;
+        current_block->br   = block_br::UNUSED;
         current_block->head = ssas.tail;
     }
 
     bb *end_block()
     {
-        assert(current_block->head < ssas.tail /* empty block */);
-        assert(has_terminal);
+        return end_block(NULL);
+    }
 
-        bb *block           = current_block;
-        current_block->tail = ssas.tail - 1;
-        current_block       = NULL;
+    bb *end_block(bb *next)
+    {
+        assert(current_block->head < ssas.tail /* empty block */);
+
+        bb *block   = current_block;
+        block->tail = ssas.tail - 1;
+        if (next) {
+            assert(current_block->br == block_br::UNUSED);
+            assert(block->block_true == NULL);
+            assert(block->block_false == NULL);
+
+            block->br         = block_br::unconditional;
+            block->block_true = next;
+        } else {
+            assert(current_block->br != block_br::UNUSED);
+        }
+
+        current_block = NULL;
 
         return block;
     }
 
+    void start_phi()
+    {
+        assert(phi_count == 0);
+    }
+
+    void push_phi(ir::ssa *ssa)
+    {
+        assert(phi_count < PARTIAL_PHI_MAX);
+        current_phi[phi_count] = ssa;
+        phi_count++;
+    }
+
+    ir::ssa *end_phi()
+    {
+        assert(phi_count > 0);
+
+        ir::ssa **list = phi_lists.alloc(phi_count);
+        std::memcpy(list, current_phi, phi_count * sizeof(ir::ssa *));
+
+        auto ssa           = ssas.alloc();
+        ssa->op            = ir::opcode::phi;
+        ssa->left.ssa_list = list;
+        ssa->right.count   = phi_count;
+
+        phi_count = 0;
+
+        return ssa;
+    }
+
     ir::ssa *DBG()
     {
-        assert(!has_terminal);
+        assert(current_block->br == block_br::UNUSED);
         auto ssa = ssas.alloc();
 
         ssa->op = ir::opcode::dbg;
@@ -59,7 +111,7 @@ struct builder {
 
     ir::ssa *add(ir::ssa *l, ir::ssa *r)
     {
-        assert(!has_terminal);
+        assert(current_block->br == block_br::UNUSED);
         auto ssa = ssas.alloc();
 
         ssa->op    = ir::opcode::add;
@@ -69,31 +121,23 @@ struct builder {
         return ssa;
     }
 
-    ir::ssa *branch_eq(ir::ssa *l, ir::ssa *r, bb **when_true, bb **when_false)
+    void branch(block_br br, bb **when_true, bb **when_false)
     {
-        assert(!has_terminal);
-        auto ssa = ssas.alloc();
+        assert(current_block->br == block_br::UNUSED);
 
         if (*when_true == NULL)
             *when_true = alloc_block();
         if (*when_false == NULL)
             *when_false = alloc_block();
 
-        ssa->op    = ir::opcode::breq;
-        ssa->left  = {.ssa = l};
-        ssa->right = {.ssa = r};
-
-        ssa->true_block  = *when_true; // TODO JOSH: move to basic block
-        ssa->false_block = *when_false;
-
-        has_terminal = true;
-
-        return ssa;
+        current_block->br          = br;
+        current_block->block_true  = *when_true;
+        current_block->block_false = *when_false;
     }
 
     ir::ssa *literal(u64 val)
     {
-        assert(!has_terminal);
+        assert(current_block->br == block_br::UNUSED);
         auto ssa = ssas.alloc();
 
         ssa->op    = ir::opcode::i;
@@ -103,15 +147,44 @@ struct builder {
         return ssa;
     }
 
+    ir::ssa *nop()
+    {
+        assert(current_block->br == block_br::UNUSED);
+        auto ssa = ssas.alloc();
+
+        ssa->op = ir::opcode::nop;
+
+        return ssa;
+    }
+
+    ir::ssa *ret()
+    {
+        return ret(NULL);
+    }
+
     ir::ssa *ret(ir::ssa *val)
     {
-        assert(!has_terminal);
+        assert(current_block->br == block_br::UNUSED);
+        auto ssa = ssas.alloc();
 
-        // TODO JOSH
+        ssa->op       = ir::opcode::ret;
+        ssa->left.ssa = val;
 
-        has_terminal = true;
+        current_block->br = block_br::unconditional;
 
-        return NULL;
+        return ssa;
+    }
+
+    ir::ssa *sub(ir::ssa *l, ir::ssa *r)
+    {
+        assert(current_block->br == block_br::UNUSED);
+        auto ssa = ssas.alloc();
+
+        ssa->op    = ir::opcode::sub;
+        ssa->left  = {.ssa = l};
+        ssa->right = {.ssa = r};
+
+        return ssa;
     }
 };
 }

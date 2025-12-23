@@ -54,17 +54,22 @@ struct builder {
         partial_block *partial = block_stack.pop();
         assert(partial->count > 0);
 
-        auto s              = statements.alloc();
-        s->kind             = ast::kind::stmt_block;
-        s->block.statements = reinterpret_cast<ast::stmt **>(ptr_lists.alloc(partial->count));
+        auto s  = statements.alloc();
+        s->kind = ast::kind::stmt_block;
+        s->block.statements =
+            reinterpret_cast<ast::stmt **>(ptr_lists.alloc(partial->count));
 
-        std::memcpy(s->block.statements, partial->statements, partial->count);
+        std::memcpy(s->block.statements,
+                    partial->statements,
+                    partial->count * sizeof(ast::stmt *));
 
         return s;
     }
 
     void push_block_stmt(stmt *statement)
     {
+        assert(statement != NULL);
+
         partial_block *partial = block_stack.peek();
 
         assert(partial->count < PARTIAL_BLOCK_MAX);
@@ -88,15 +93,20 @@ struct builder {
 
         auto s       = statements.alloc();
         s->kind      = ast::kind::stmt_ifs;
-        s->ifs.pairs = reinterpret_cast<ast::_stmt_if_pair **>(ptr_lists.alloc(partial->count));
+        s->ifs.pairs = reinterpret_cast<ast::_stmt_if_pair **>(
+            ptr_lists.alloc(partial->count));
 
-        std::memcpy(s->ifs.pairs, partial->pairs, partial->count);
+        std::memcpy(s->ifs.pairs,
+                    partial->pairs,
+                    partial->count * sizeof(ast::_stmt_if_pair *));
 
         return s;
     }
 
     void push_if(exp *condition, stmt *statement)
     {
+        assert(statement != NULL);
+
         partial_ifs *partial = ifs_stack.peek();
 
         assert(condition != NULL || !partial->has_else);
@@ -114,6 +124,8 @@ struct builder {
 
     void push_else(stmt *statement)
     {
+        assert(statement != NULL);
+
         return push_if(NULL, statement);
     }
 
@@ -123,9 +135,27 @@ struct builder {
 
     stmt *DBG_stmt(stmt *statement)
     {
+        assert(statement != NULL);
+
         auto s           = statements.alloc();
         s->DBG.statement = statement;
         return s;
+    }
+
+    stmt *assign(ast::exp *left, ast::exp *right)
+    {
+        auto s = statements.alloc();
+
+        s->kind         = ast::kind::stmt_assign;
+        s->assign.left  = left;
+        s->assign.right = right;
+
+        return s;
+    }
+
+    stmt *return_stmt()
+    {
+        return return_stmt(NULL);
     }
 
     stmt *return_stmt(ast::exp *exp)
@@ -138,12 +168,34 @@ struct builder {
         return s;
     }
 
+    stmt *local_decl(exp_ident *type, exp_ident *name)
+    {
+        return local_decl(type, name, NULL);
+    }
+
+    stmt *local_decl(exp_ident *type, exp_ident *name, exp *expression)
+    {
+        assert(type != NULL);
+        assert(name != NULL);
+
+        auto s = statements.alloc();
+
+        s->kind                        = ast::kind::stmt_local_decl;
+        s->local_decl.type             = type;
+        s->local_decl.name             = name;
+        s->local_decl.maybe_expression = expression;
+
+        return s;
+    }
+
     /*****************
      *  Expressions  *
      *****************/
 
     exp *DBG_exp(exp *expression)
     {
+        assert(expression != NULL);
+
         auto e            = expressions.alloc();
         e->DBG.expression = expression;
         return e;
@@ -151,6 +203,10 @@ struct builder {
 
     exp *binary_exp(exp *left, ast::op op, exp *right)
     {
+        assert(left != NULL);
+        assert(right != NULL);
+        assert(op != ast::op::UNUSED);
+
         auto e = expressions.alloc();
 
         e->kind         = ast::kind::exp_binary;
@@ -163,6 +219,8 @@ struct builder {
 
     exp *ident(str name)
     {
+        assert(name.len > 0);
+
         auto e = expressions.alloc();
 
         e->kind       = ast::kind::exp_ident;

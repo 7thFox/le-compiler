@@ -107,6 +107,12 @@ struct stmt_ifs {
     _stmt_if_pair **pairs;
 };
 
+struct stmt_local_decl {
+    exp_ident *type;
+    exp_ident *name;
+    exp       *maybe_expression;
+};
+
 struct stmt_return {
     exp *maybe_expression;
 };
@@ -133,12 +139,12 @@ struct stmt {
     ast::kind kind;
 
     union {
-        stmt_DBG    DBG;
-        stmt_assign assign;
-        stmt_block  block;
-        stmt_ifs    ifs;
-        stmt_return return_stmt;
-        // stmt_local_decl local_decl;
+        stmt_DBG        DBG;
+        stmt_assign     assign;
+        stmt_block      block;
+        stmt_ifs        ifs;
+        stmt_return     return_stmt;
+        stmt_local_decl local_decl;
 
         // not actually allowed for raw stmt:
         _stmt_if_pair _if_pair;
