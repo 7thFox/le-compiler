@@ -1,0 +1,10 @@
+Checks: >
+  readability-implicit-bool-conversion
+
+CheckOptions:
+  - key: readability-implicit-bool-conversion.AllowIntegerConditions
+    value: 'false'
+  - key: readability-implicit-bool-conversion.AllowPointerConditions
+    value: 'false'
+  - key: readability-implicit-bool-conversion.AllowImplicitBoolConversions
+    value: 'true'

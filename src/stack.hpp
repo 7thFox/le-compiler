@@ -11,16 +11,11 @@ struct stack {
     T *bottom;
     T *next;
 
-    stack(size_t size)
+    stack(T *stack_mem, size_t size)
     {
-        bottom = static_cast<T *>(std::malloc(sizeof(T) * size));
+        bottom = stack_mem;
         next   = bottom;
         max    = bottom + size;
-    }
-
-    ~stack()
-    {
-        std::free(bottom);
     }
 
     T *move_next()
@@ -32,14 +27,36 @@ struct stack {
 
     T *peek()
     {
-        assert(next > bottom);
+        assert(!is_empty());
         return next - 1;
     }
 
     T *pop()
     {
+        assert(!is_empty());
         next--;
-        assert(next >= bottom);
         return next;
     }
+
+    bool is_empty()
+    {
+        return next <= bottom;
+    }
+
+    void clear()
+    {
+        next = bottom;
+    }
+
+    size_t count()
+    {
+        return next - bottom;
+    }
 };
+
+// template <typename T>
+// struct arena_stack {
+//     arena<arena<T>> arena_stack;
+
+//     arena_stack(size_t max_arenas, size_t max_per_arean)
+// };

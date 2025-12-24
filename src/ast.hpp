@@ -1,9 +1,7 @@
 #pragma once
 
 #include "global.hpp"
-
-struct sym {
-};
+#include "symbol.hpp"
 
 namespace ast
 {
@@ -59,8 +57,8 @@ struct exp_binary {
 };
 
 struct exp_ident {
-    str  name;
-    sym *symbol;
+    str   name;
+    SYMID anno_symbol;
 };
 
 struct exp_literal {
@@ -96,6 +94,7 @@ struct stmt_assign {
 };
 
 struct stmt_block {
+    size_t count;
     stmt **statements;
 };
 
@@ -104,6 +103,7 @@ struct stmt_else {
 };
 
 struct stmt_ifs {
+    size_t          count;
     _stmt_if_pair **pairs;
 };
 

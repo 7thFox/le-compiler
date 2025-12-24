@@ -2,6 +2,7 @@
 
 #include "arena.hpp"
 #include "global.hpp"
+#include "log.hpp"
 
 #include <functional>
 
@@ -27,9 +28,7 @@ struct map {
     arena<map_node<TKey, TValue>> arena;
     map_node<TKey, TValue>       *buckets;
 
-    static constexpr size_t arena_max = 1024 * 1024 * 1024;
-
-    map() : arena(arena_max)
+    map(size_t max) : arena(max)
     {
         buckets = arena.alloc(N_BUCKETS);
     }
@@ -40,12 +39,11 @@ struct map {
         bucket_add(key, value, hash, 0, buckets);
     }
 
-    void bucket_add(TKey key, TValue value, size_t hash, int depth, map_node<TKey, TValue> *bucket)
+    void bucket_add(TKey key, TValue value, size_t hash, int depth,
+                    map_node<TKey, TValue> *bucket)
     {
-        if (depth >= 8) {
-            log::fatalf("not implemented: full u64 hash match");
-            return;
-        }
+        assert(bucket != NULL);
+        assert(depth < 8);
 
         u8 hpart = (hash >> (8 * depth)) & 0xFF;
 
@@ -85,12 +83,11 @@ struct map {
         return bucket_get(key, value, hash, 0, buckets);
     }
 
-    bool bucket_get(TKey key, TValue *value, size_t hash, int depth, map_node<TKey, TValue> *bucket)
+    bool bucket_get(TKey key, TValue *value, size_t hash, int depth,
+                    map_node<TKey, TValue> *bucket)
     {
-        if (depth >= 8) {
-            log::fatalf("not implemented: full u64 hash match");
-            return false;
-        }
+        assert(depth < 8);
+        assert(bucket != NULL);
 
         u8 hpart = (hash >> (8 * depth)) & 0xFF;
 

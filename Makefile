@@ -8,7 +8,10 @@ CXXFLAGS := -std=c++20 \
 	-fno-rtti\
 	-Wno-missing-designated-field-initializers\
 	-Wno-multichar \
-	-Wno-reorder-init-list
+	-Wno-reorder-init-list \
+	-Wno-unused-parameter
+
+CXXFLAGS_NOANALYZER := -Wno-switch
 
 # Directories
 SRC_DIR := src
@@ -21,8 +24,12 @@ SRCS := $(wildcard $(SRC_DIR)/**/*.cpp) $(wildcard $(SRC_DIR)/*.cpp)
 # OBJS := $(SRCS:$(SRC_DIR)/%.cpp=$(BIN_DIR)/%.o)
 
 test: $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $(BIN_DIR)/$@ entry/$@.cpp $(SRCS)
+	$(CXX) $(CXXFLAGS) $(CXXFLAGS_NOANALYZER) -o $(BIN_DIR)/$@ entry/$@.cpp $(SRCS)
 	$(BIN_DIR)/$@
+
+analyze:
+	clang-tidy entry/*.cpp $(SRCS) -- $(CXXFLAGS)
+
 
 # Ensure bin directory exists
 $(BIN_DIR):

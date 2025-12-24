@@ -20,6 +20,10 @@ IncludeBlocks: Regroup
 AlignAfterOpenBracket: true
 AllowAllArgumentsOnNextLine: false
 BinPackArguments: false
+BinPackLongBracedList: true
+BinPackParameters: OnePerLine
 BreakTemplateDeclarations: Yes
 BreakBeforeBraces: Linux
 BreakBeforeTernaryOperators: true
+PenaltyExcessCharacter: 1
+PackConstructorInitializers: CurrentLine

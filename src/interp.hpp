@@ -13,12 +13,7 @@ struct block_context {
 };
 
 struct interp {
-
-    map<ir::ssa *, u64> ssa_values;
-
-    interp() : ssa_values()
-    {
-    }
+    map<ir::ssa *, u64> ssa_values = (1000000);
 
     void exec(bb *block);
     void _exec(block_context &ctx);

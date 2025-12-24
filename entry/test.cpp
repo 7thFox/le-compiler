@@ -12,6 +12,7 @@
 #include "../src/map.hpp"
 
 #include <cstdio>
+#include <cstdlib>
 
 // source => tokens
 // tokens => AST
@@ -33,12 +34,9 @@ int test_ir()
 
     {
         b.start_block();
-        auto l = b.literal(4);
-        b.DBG();
-        auto r = b.literal(6);
-        b.DBG();
+        auto l   = b.literal(4);
+        auto r   = b.literal(6);
         auto sum = b.add(l, r);
-        b.DBG();
         b.sub(sum, b.literal(10));
         b.branch(block_br::eq, &block_true, &block_false);
         block_entry = b.end_block();
@@ -59,7 +57,6 @@ int test_ir()
         b.push_phi(phi1);
         b.push_phi(phi2);
         b.end_phi();
-        b.DBG();
         b.ret();
         b.end_block();
     }
@@ -71,33 +68,57 @@ int test_ir()
 
 int test_ast()
 {
-    arena<u8>    strs = (1000000);
-    ast::builder b;
+    constexpr size_t IDK             = 100000;
+    constexpr size_t MAX_BLOCK_DEPTH = 256;
+    constexpr size_t MAX_CHAINED_IFS = 256;
+
+    arena<ast::stmt *> *ip_blocks_mem = static_cast<arena<ast::stmt *> *>(
+        std::malloc(MAX_BLOCK_DEPTH * sizeof(arena<void *>)));
+    for (size_t i = 0; i < MAX_BLOCK_DEPTH; i++) {
+        new (ip_blocks_mem + i) arena<ast::stmt *>(IDK);
+    }
+
+    arena<ast::_stmt_if_pair *> *ip_ifs_mem = static_cast<arena<ast::_stmt_if_pair *> *>(
+        std::malloc(MAX_CHAINED_IFS * sizeof(arena<void *>)));
+    for (size_t i = 0; i < MAX_CHAINED_IFS; i++) {
+        new (ip_ifs_mem + i) arena<ast::_stmt_if_pair *>(IDK);
+    }
+
+    arena<u8>                 strs(IDK);
+    arena<ast::stmt>          statements(IDK);
+    arena<ast::exp>           expressions(IDK);
+    arena<void *>             ptr_lists(IDK);
+    stack<arena<ast::stmt *>> ip_blocks(ip_blocks_mem, MAX_BLOCK_DEPTH);
+    stack<arena<ast::_stmt_if_pair *>> ip_ifs(ip_ifs_mem, MAX_CHAINED_IFS);
+
+    ast::builder b(&strs, &statements, &expressions, &ptr_lists, &ip_blocks, &ip_ifs);
 
     // clang-format off
     b.start_block();// main()
 
-    b.push_block_stmt(b.local_decl(
-        &b.ident(str("u64", strs))->ident,
-        &b.ident(str("x", strs))->ident));
+    b.push_block_stmt(b.local_decl(&b.ident("u64")->ident,
+                                   &b.ident("x")->ident,
+                                    b.literal(0x0F00)));
 
     b.start_ifs();
     b.push_if(
         b.binary_exp(
-            b.binary_exp(
-                b.literal(4),
-                ast::op::add,
-                b.literal(6)),
+            b.binary_exp(b.literal(4),
+                         ast::op::add,
+                         b.literal(6)),
             ast::op::equals,
-            b.literal(10)),
-        b.assign(
-            b.ident(str("x", strs)),
-            b.literal(0xCAFE)));
+            b.literal(150)),
+        b.assign(b.ident("x"),
+                 b.literal(0xCAFE)));
 
-    b.push_else(
-        b.assign(
-            b.ident(str("x", strs)),
-            b.literal(0xBABE)));
+    b.push_else(b.assign(b.ident("x"),
+                         b.literal(0xBABE)));
+
+    b.push_block_stmt(b.end_ifs());
+    b.push_block_stmt(b.local_decl(&b.ident("u64")->ident,
+                                   &b.ident("y")->ident,
+                                    b.ident("x")));
+    b.push_block_stmt(b.return_stmt());
     // clang-format on
 
     auto ast = b.end_block();

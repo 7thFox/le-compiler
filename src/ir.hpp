@@ -1,22 +1,22 @@
 #pragma once
 
 #include "global.hpp"
+#include "symbol.hpp"
 
 namespace ir
 {
 
 enum class ssa_prop : u64 {
     const_val = 1 << 0,
+    no_value  = 1 << 1,
 };
 
-inline ssa_prop operator&(ssa_prop lhs, ssa_prop rhs)
+inline bool has(ssa_prop flags, ssa_prop f)
 {
-    return static_cast<ssa_prop>(static_cast<u64>(lhs) & static_cast<u64>(rhs));
-}
+    u64 flags64 = static_cast<u64>(flags);
+    u64 f64     = static_cast<u64>(f);
 
-inline ssa_prop operator|(ssa_prop lhs, ssa_prop rhs)
-{
-    return static_cast<ssa_prop>(static_cast<u64>(lhs) | static_cast<u64>(rhs));
+    return (flags64 & f64) == f64;
 }
 
 enum class opcode : u32 {

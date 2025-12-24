@@ -9,7 +9,7 @@
 template <typename T>
 struct arena {
     T     *head;
-    T     *tail;
+    T     *next;
     size_t cap;
     size_t size;
 
@@ -25,14 +25,14 @@ struct arena {
                          -1,
                          0);
 
-        head = tail = static_cast<T *>(ptr);
+        head = next = static_cast<T *>(ptr);
     }
 
     ~arena()
     {
-        head = tail = nullptr;
-        cap = size = 0;
         munmap(head, cap * sizeof(T));
+        head = next = nullptr;
+        cap = size = 0;
     }
 
     T *alloc()
@@ -48,9 +48,27 @@ struct arena {
             log::fatalf("Arena reached max capacity (%li)", cap);
         }
 
-        T *ptr = tail;
-        tail += count;
+        T *ptr = next;
+        next += count;
 
         return ptr;
+    }
+
+    T *peek()
+    {
+        assert(!is_empty());
+        return next - 1;
+    }
+
+    bool is_empty()
+    {
+        return next == head;
+    }
+
+    void clear()
+    {
+        madvise(head, cap * sizeof(T), MADV_DONTNEED);
+        next = head;
+        size = 0;
     }
 };

@@ -8,34 +8,30 @@
 
 namespace ast
 {
-
-constexpr size_t PARTIAL_IFS_MAX = 256;
-
-struct partial_ifs {
-    ast::_stmt_if_pair *pairs[PARTIAL_IFS_MAX];
-    size_t              count = 0;
-    bool                has_else;
-};
-
-constexpr size_t PARTIAL_BLOCK_MAX = 4096;
-
-struct partial_block {
-    ast::stmt *statements[PARTIAL_BLOCK_MAX];
-    size_t     count = 0;
-};
+constexpr size_t MAX_STACKS = 4096 / sizeof(void *);
 
 struct builder {
 
-    arena<stmt> statements  = (1000000);
-    arena<exp>  expressions = (1000000);
+    arena<u8>                          *strs;
+    arena<ast::stmt>                   *statements;
+    arena<ast::exp>                    *expressions;
+    arena<void *>                      *ptr_lists;
+    stack<arena<ast::stmt *>>          *ip_blocks;
+    stack<arena<ast::_stmt_if_pair *>> *ip_ifs;
 
-    arena<void *> ptr_lists = (1000000);
-
-    stack<partial_ifs>   ifs_stack   = (128);
-    stack<partial_block> block_stack = (128);
-
-    builder()
+    builder(arena<u8>                          *strs,
+            arena<ast::stmt>                   *statements,
+            arena<ast::exp>                    *expressions,
+            arena<void *>                      *ptr_lists,
+            stack<arena<ast::stmt *>>          *ip_blocks,
+            stack<arena<ast::_stmt_if_pair *>> *ip_ifs)
     {
+        this->strs        = strs;
+        this->statements  = statements;
+        this->expressions = expressions;
+        this->ptr_lists   = ptr_lists;
+        this->ip_blocks   = ip_blocks;
+        this->ip_ifs      = ip_ifs;
     }
 
     /********************
@@ -44,24 +40,22 @@ struct builder {
 
     void start_block()
     {
-        partial_block *partial = block_stack.move_next();
-
-        partial->count = 0;
+        auto ip = ip_blocks->move_next();
+        ip->clear();
     }
 
     stmt *end_block()
     {
-        partial_block *partial = block_stack.pop();
-        assert(partial->count > 0);
+        auto ip = ip_blocks->pop();
+        assert(!ip->is_empty());
 
-        auto s  = statements.alloc();
-        s->kind = ast::kind::stmt_block;
+        auto s         = statements->alloc();
+        s->kind        = ast::kind::stmt_block;
+        s->block.count = ip->size;
         s->block.statements =
-            reinterpret_cast<ast::stmt **>(ptr_lists.alloc(partial->count));
+            reinterpret_cast<ast::stmt **>(ptr_lists->alloc(s->block.count));
 
-        std::memcpy(s->block.statements,
-                    partial->statements,
-                    partial->count * sizeof(ast::stmt *));
+        std::memcpy(s->block.statements, ip->head, ip->size * sizeof(ast::stmt *));
 
         return s;
     }
@@ -70,35 +64,28 @@ struct builder {
     {
         assert(statement != NULL);
 
-        partial_block *partial = block_stack.peek();
-
-        assert(partial->count < PARTIAL_BLOCK_MAX);
-
-        partial->statements[partial->count] = statement;
-        partial->count++;
+        auto ip      = ip_blocks->peek();
+        *ip->alloc() = statement;
     }
 
     void start_ifs()
     {
-        partial_ifs *partial = ifs_stack.move_next();
-
-        partial->count    = 0;
-        partial->has_else = false;
+        auto ip = ip_ifs->move_next();
+        ip->clear();
     }
 
     stmt *end_ifs()
     {
-        partial_ifs *partial = ifs_stack.pop();
-        assert(partial->count > 0);
+        auto ip = ip_ifs->pop();
+        assert(!ip->is_empty());
 
-        auto s       = statements.alloc();
+        auto s       = statements->alloc();
         s->kind      = ast::kind::stmt_ifs;
-        s->ifs.pairs = reinterpret_cast<ast::_stmt_if_pair **>(
-            ptr_lists.alloc(partial->count));
+        s->ifs.count = ip->size;
+        s->ifs.pairs =
+            reinterpret_cast<ast::_stmt_if_pair **>(ptr_lists->alloc(s->ifs.count));
 
-        std::memcpy(s->ifs.pairs,
-                    partial->pairs,
-                    partial->count * sizeof(ast::_stmt_if_pair *));
+        std::memcpy(s->ifs.pairs, ip->head, ip->size * sizeof(ast::_stmt_if_pair *));
 
         return s;
     }
@@ -107,19 +94,19 @@ struct builder {
     {
         assert(statement != NULL);
 
-        partial_ifs *partial = ifs_stack.peek();
+        auto ip = ip_ifs->peek();
 
-        assert(condition != NULL || !partial->has_else);
-        assert(partial->count < PARTIAL_IFS_MAX);
+        bool else_first = condition == NULL && ip->is_empty();
+        assert(!else_first);
+        bool multiple_else = condition == NULL && (*ip->peek())->maybe_condition == NULL;
+        assert(!multiple_else);
 
-        auto s                      = statements.alloc();
+        auto s                      = statements->alloc();
         s->kind                     = ast::kind::_stmt_raw_if;
         s->_if_pair.maybe_condition = condition;
         s->_if_pair.statement       = statement;
 
-        partial->pairs[partial->count] = &s->_if_pair;
-        partial->has_else              = condition == NULL;
-        partial->count++;
+        *ip->alloc() = &s->_if_pair;
     }
 
     void push_else(stmt *statement)
@@ -137,14 +124,14 @@ struct builder {
     {
         assert(statement != NULL);
 
-        auto s           = statements.alloc();
+        auto s           = statements->alloc();
         s->DBG.statement = statement;
         return s;
     }
 
     stmt *assign(ast::exp *left, ast::exp *right)
     {
-        auto s = statements.alloc();
+        auto s = statements->alloc();
 
         s->kind         = ast::kind::stmt_assign;
         s->assign.left  = left;
@@ -160,7 +147,7 @@ struct builder {
 
     stmt *return_stmt(ast::exp *exp)
     {
-        auto s = statements.alloc();
+        auto s = statements->alloc();
 
         s->kind                         = ast::kind::stmt_return;
         s->return_stmt.maybe_expression = exp;
@@ -178,7 +165,7 @@ struct builder {
         assert(type != NULL);
         assert(name != NULL);
 
-        auto s = statements.alloc();
+        auto s = statements->alloc();
 
         s->kind                        = ast::kind::stmt_local_decl;
         s->local_decl.type             = type;
@@ -196,7 +183,7 @@ struct builder {
     {
         assert(expression != NULL);
 
-        auto e            = expressions.alloc();
+        auto e            = expressions->alloc();
         e->DBG.expression = expression;
         return e;
     }
@@ -207,7 +194,7 @@ struct builder {
         assert(right != NULL);
         assert(op != ast::op::UNUSED);
 
-        auto e = expressions.alloc();
+        auto e = expressions->alloc();
 
         e->kind         = ast::kind::exp_binary;
         e->binary.left  = left;
@@ -217,21 +204,27 @@ struct builder {
         return e;
     }
 
+    exp *ident(const char *name)
+    {
+        return ident(str(name, strs));
+    }
+
     exp *ident(str name)
     {
         assert(name.len > 0);
 
-        auto e = expressions.alloc();
+        auto e = expressions->alloc();
 
         e->kind       = ast::kind::exp_ident;
         e->ident.name = name;
+        e->ident.anno_symbol = reinterpret_cast<SYMID>(1); // TODO JOSH: Annotate symbols
 
         return e;
     }
 
     exp *literal(u64 val)
     {
-        auto e = expressions.alloc();
+        auto e = expressions->alloc();
 
         e->kind            = ast::kind::exp_literal;
         e->literal.kind    = ast::lit_kind::u64;

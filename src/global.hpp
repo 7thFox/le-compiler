@@ -13,12 +13,24 @@ struct str {
     std::size_t len;
     const u8   *val;
 
-    str(const char *cstr, arena<u8> arena)
+    str(const char *cstr, arena<u8> *arena)
     {
         len = std::strlen(cstr);
 
-        u8 *arr = arena.alloc(len);
+        u8 *arr = arena->alloc(len);
         std::memcpy(arr, cstr, len);
         val = arr;
+    }
+
+    bool equal(const char *str)
+    {
+        if (std::strlen(str) != len) {
+            return false;
+        }
+
+        auto cstr = reinterpret_cast<const char *>(val);
+        // log::debugf("%.*s == %.*s ?", len, cstr, len, str);
+
+        return std::strncmp(cstr, str, len) == 0;
     }
 };
