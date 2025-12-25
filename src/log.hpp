@@ -29,6 +29,11 @@ void errorf(const char *__restrict__ fmt, ...);
 
 [[noreturn]] void fatalf(const char *__restrict__ fmt, ...);
 
+inline void noimpl()
+{
+    fatalf("Not Implemented");
+}
+
 #define assert(cond)                          \
     if (!(cond)) {                            \
         log::fatalf("Assert Failed: " #cond); \

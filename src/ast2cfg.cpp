@@ -19,12 +19,12 @@ void write_exp_unary(ir::builder *b, ast::exp_unary *e, exp_mode is_read);
 
 bb *ast2cfg(ir::builder *b, ast::stmt *tree)
 {
-    assert(b->blocks.size == 0);
+    assert(b->blocks->size == 0);
     assert(b->current_block == NULL);
 
     write_stmt(b, tree);
 
-    return b->blocks.head;
+    return b->blocks->head;
 }
 
 void write_stmt(ir::builder *b, ast::stmt *s)
@@ -68,10 +68,10 @@ void write_stmt_assign(ir::builder *b, ast::stmt_assign *s)
 {
     write_exp(b, s->right, exp_read);
 
-    ir::ssa *exp_result = b->ssas.next - 1;
-    assert(exp_result >= b->ssas.head);
+    ir::ssa *exp_result = b->ssas->next - 1;
+    assert(exp_result >= b->ssas->head);
 
-    assert(!has(exp_result->flags, ir::ssa_prop::no_value));
+    assert(!exp_result->has_flag(ir::ssa_prop::no_value));
 
     write_exp(b, s->left, exp_write);
 }
@@ -110,9 +110,9 @@ void write_stmt_ifs(ir::builder *b, ast::stmt_ifs *s)
         assert(pair->statement != NULL);
 
         if (pair->maybe_condition != NULL) { // if (...)
-            auto ssa_before = b->ssas.next - 1;
+            auto ssa_before = b->ssas->next - 1;
             write_exp(b, pair->maybe_condition, exp_read);
-            auto ssa_after = b->ssas.next - 1;
+            auto ssa_after = b->ssas->next - 1;
             assert(ssa_after > ssa_before);
 
             bb *when_true  = NULL;
@@ -146,25 +146,31 @@ void write_stmt_local_decl(ir::builder *b, ast::stmt_local_decl *s)
 {
     assert(s->name->anno_symbol != NO_SYMBOL);
 
-    auto sym = s->name->anno_symbol;
-
     // HACK
     assert(s->type->name.equal("u64"));
 
     if (s->maybe_expression != NULL) {
         write_exp(b, s->maybe_expression, exp_read);
 
-        ir::ssa *exp_result = b->ssas.next - 1;
-        assert(exp_result >= b->ssas.head);
-        assert(!has(exp_result->flags, ir::ssa_prop::no_value));
+        ir::ssa *exp_result = b->ssas->next - 1;
+        assert(exp_result >= b->ssas->head);
 
-        log::warnf("ident phi resolution not implemented");
+        assert(!exp_result->has_flag(ir::ssa_prop::no_value));
+
+        get_symbol(s->name->anno_symbol)->push_ssa(exp_result, b->current_block);
     }
 }
 
 void write_stmt_return(ir::builder *b, ast::stmt_return *s)
 {
-    b->ret();
+    ir::ssa *val = NULL;
+    if (s->maybe_expression != NULL) {
+        ir::ssa *before = b->ssas->peek();
+        write_exp(b, s->maybe_expression, exp_read);
+        val = b->ssas->peek();
+        assert(val != before);
+    }
+    b->ret(val);
     b->end_block();
 }
 
@@ -190,11 +196,11 @@ void write_exp_binary(ir::builder *b, ast::exp_binary *e, exp_mode is_read)
     assert(e->right != NULL);
     assert(e->op != ast::op::UNUSED);
 
-    auto ssa_before = b->ssas.next - 1;
+    auto ssa_before = b->ssas->next - 1;
     write_exp(b, e->left, exp_read);
-    auto ssa_left = b->ssas.next - 1;
+    auto ssa_left = b->ssas->next - 1;
     write_exp(b, e->right, exp_read);
-    auto ssa_right = b->ssas.next - 1;
+    auto ssa_right = b->ssas->next - 1;
 
     assert(ssa_before < ssa_left);
     assert(ssa_left < ssa_right);
@@ -217,10 +223,17 @@ void write_exp_ident(ir::builder *b, ast::exp_ident *e, exp_mode is_read)
     assert(e->anno_symbol != NO_SYMBOL);
 
     if (!is_read) {
-        return; // nothing to do
-    }
+        get_symbol(e->anno_symbol)->push_ssa(b->ssas->peek(), b->current_block);
+    } else {
+        // TODO JOSH: potential reduce
+        auto sym = get_symbol(e->anno_symbol);
 
-    log::warnf("ident phi resolution not implemented");
+        b->start_phi(); // TODO: If this doesn't change, update to array copy
+        for (ir::ssa **ssa = sym->_ssas->bottom; ssa < sym->_ssas->next; ssa++) {
+            b->push_phi(*ssa);
+        }
+        b->end_phi();
+    }
 }
 
 void write_exp_literal(ir::builder *b, ast::exp_literal *e, exp_mode is_read)

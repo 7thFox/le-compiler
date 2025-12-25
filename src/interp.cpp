@@ -68,9 +68,9 @@ void interp::_exec(block_context &ctx)
         case ir::opcode::nop:
             break;
         case ir::opcode::phi: {
-            bool  found_phi = false;
-            u64   final     = -1;
-            char *buff      = param_buff;
+            ir::ssa *found_phi = NULL;
+            u64      final     = -1;
+            char    *buff      = param_buff;
 
             for (size_t i = 0; i < ssa->right.count; i++) {
                 ir::ssa *x = ssa->left.ssa_list[i];
@@ -82,9 +82,13 @@ void interp::_exec(block_context &ctx)
                                  (u64)x & 0xFFFF);
                 u64 val;
                 if (ssa_values.try_get(x, &val)) {
-                    assert(!found_phi);
+                    if (found_phi != NULL) {
+                        log::fatalf("Multiple Phi found: $%04lx, $%04lx",
+                                    (u64)found_phi & 0xFFFF,
+                                    (u64)x & 0xFFFF);
+                    }
                     final     = val;
-                    found_phi = true;
+                    found_phi = x;
                 }
             }
             assert(found_phi);

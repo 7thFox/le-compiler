@@ -1,7 +1,8 @@
 #pragma once
 
 #include "global.hpp"
-#include "symbol.hpp"
+
+typedef void *SYMID; // sym*
 
 namespace ir
 {
@@ -10,14 +11,6 @@ enum class ssa_prop : u64 {
     const_val = 1 << 0,
     no_value  = 1 << 1,
 };
-
-inline bool has(ssa_prop flags, ssa_prop f)
-{
-    u64 flags64 = static_cast<u64>(flags);
-    u64 f64     = static_cast<u64>(f);
-
-    return (flags64 & f64) == f64;
-}
 
 enum class opcode : u32 {
     nop = 'PON',
@@ -40,6 +33,7 @@ enum class opcode : u32 {
 struct ssa {
     opcode   op;
     ssa_prop flags;
+    bb      *block;
 
     union {
         u64       i;
@@ -52,6 +46,14 @@ struct ssa {
         ir::ssa *ssa;
         size_t   count;
     } right;
+
+    bool has_flag(ssa_prop want)
+    {
+        u64 flags64 = static_cast<u64>(flags);
+        u64 want64  = static_cast<u64>(want);
+
+        return (flags64 & want64) == want64;
+    }
 };
 
 }

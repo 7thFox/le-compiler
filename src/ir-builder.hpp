@@ -7,30 +7,27 @@
 
 namespace ir
 {
-
-constexpr size_t PARTIAL_PHI_MAX = 256;
-
 struct builder {
 
-    // arena<scope_t>   scopes    = (1000000);
-    arena<bb>        blocks    = (1000000);
-    arena<ir::ssa>   ssas      = (1000000);
-    arena<ir::ssa *> phi_lists = (1000000);
+    arena<bb>        *blocks;
+    arena<ir::ssa>   *ssas;
+    arena<ir::ssa *> *phi_lists;
 
-    // scope_t *current_scope       = NULL;
     bb *current_block       = NULL;
     bb *unconditional_block = NULL;
 
-    ir::ssa *current_phi[PARTIAL_PHI_MAX];
-    size_t   phi_count = 0;
+    ir::ssa **phi_start = NULL;
 
-    builder()
+    builder(arena<bb> *blocks, arena<ir::ssa> *ssas, arena<ir::ssa *> *phi_lists)
     {
+        this->blocks    = blocks;
+        this->ssas      = ssas;
+        this->phi_lists = phi_lists;
     }
 
     bb *alloc_block()
     {
-        return blocks.alloc();
+        return blocks->alloc();
     }
 
     void start_block()
@@ -45,13 +42,11 @@ struct builder {
     {
         assert(block != NULL);
         assert(current_block == NULL);
-        // assert(current_scope != NULL);
         assert(unconditional_block == NULL);
 
         current_block       = block;
         current_block->br   = block_br::UNUSED;
-        current_block->head = ssas.next;
-        // current_block->scope = current_scope;
+        current_block->head = ssas->next;
     }
 
     bb *end_block()
@@ -62,11 +57,11 @@ struct builder {
     bb *end_block(bb *next)
     {
         assert(current_block != NULL);
-        bool is_not_empty = current_block->head < ssas.next;
+        bool is_not_empty = current_block->head < ssas->next;
         assert(is_not_empty);
 
         bb *block   = current_block;
-        block->next = ssas.next - 1;
+        block->next = ssas->peek();
         if (next) {
             assert(current_block->br == block_br::UNUSED);
             assert(block->block_true == NULL);
@@ -85,67 +80,40 @@ struct builder {
 
     void start_phi()
     {
-        assert(current_block != NULL);
-        assert(phi_count == 0);
+        assert(phi_start == NULL);
+        phi_start = phi_lists->next;
     }
 
     void push_phi(ir::ssa *ssa)
     {
-        assert(current_block != NULL);
-        assert(phi_count < PARTIAL_PHI_MAX);
-        current_phi[phi_count] = ssa;
-        phi_count++;
+        assert(phi_start != NULL);
+        *phi_lists->alloc() = ssa;
     }
 
     ir::ssa *end_phi()
     {
-        assert(current_block != NULL);
-        assert(phi_count > 0);
+        assert(phi_start != NULL);
+        auto size = phi_lists->next - phi_start;
+        assert(size > 0);
 
-        ir::ssa **list = phi_lists.alloc(phi_count);
-        std::memcpy(list, current_phi, phi_count * sizeof(ir::ssa *));
-
-        auto ssa           = ssas.alloc();
+        auto ssa           = ssas->alloc();
+        ssa->block         = current_block;
         ssa->op            = ir::opcode::phi;
-        ssa->left.ssa_list = list;
-        ssa->right.count   = phi_count;
+        ssa->left.ssa_list = phi_start;
+        ssa->right.count   = size;
 
-        phi_count = 0;
+        phi_start = NULL;
 
         return ssa;
     }
-
-    // void start_scope()
-    // {
-    //     assert(current_block == NULL);
-
-    //     auto new_scope = scopes.alloc();
-    //     new (new_scope) scope_t();
-    //     new_scope->parent = current_scope;
-
-    //     current_scope = new_scope;
-    // }
-
-    // void end_scope()
-    // {
-    //     end_scope(false);
-    // }
-
-    // void end_scope(bool is_root)
-    // {
-    //     assert(current_scope != NULL);
-    //     assert(current_block == NULL);
-    //     assert(is_root || current_scope->parent != NULL);
-
-    //     current_scope = current_scope->parent;
-    // }
 
     ir::ssa *DBG()
     {
         assert(current_block != NULL);
         assert(current_block->br == block_br::UNUSED);
-        auto ssa = ssas.alloc();
 
+        auto ssa   = ssas->alloc();
+        ssa->block = current_block;
         ssa->op    = ir::opcode::dbg;
         ssa->flags = ir::ssa_prop::no_value;
 
@@ -156,8 +124,9 @@ struct builder {
     {
         assert(current_block != NULL);
         assert(current_block->br == block_br::UNUSED);
-        auto ssa = ssas.alloc();
 
+        auto ssa   = ssas->alloc();
+        ssa->block = current_block;
         ssa->op    = ir::opcode::add;
         ssa->left  = {.ssa = l};
         ssa->right = {.ssa = r};
@@ -204,8 +173,9 @@ struct builder {
     {
         assert(current_block != NULL);
         assert(current_block->br == block_br::UNUSED);
-        auto ssa = ssas.alloc();
 
+        auto ssa   = ssas->alloc();
+        ssa->block = current_block;
         ssa->op    = ir::opcode::i;
         ssa->left  = {.i = val};
         ssa->flags = ir::ssa_prop::const_val;
@@ -217,8 +187,9 @@ struct builder {
     {
         assert(current_block != NULL);
         assert(current_block->br == block_br::UNUSED);
-        auto ssa = ssas.alloc();
 
+        auto ssa   = ssas->alloc();
+        ssa->block = current_block;
         ssa->op    = ir::opcode::nop;
         ssa->flags = ir::ssa_prop::no_value;
 
@@ -234,8 +205,9 @@ struct builder {
     {
         assert(current_block != NULL);
         assert(current_block->br == block_br::UNUSED);
-        auto ssa = ssas.alloc();
 
+        auto ssa      = ssas->alloc();
+        ssa->block    = current_block;
         ssa->op       = ir::opcode::ret;
         ssa->left.ssa = val;
         ssa->flags    = ir::ssa_prop::no_value;
@@ -249,8 +221,9 @@ struct builder {
     {
         assert(current_block != NULL);
         assert(current_block->br == block_br::UNUSED);
-        auto ssa = ssas.alloc();
 
+        auto ssa   = ssas->alloc();
+        ssa->block = current_block;
         ssa->op    = ir::opcode::sub;
         ssa->left  = {.ssa = l};
         ssa->right = {.ssa = r};
