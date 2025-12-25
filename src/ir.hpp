@@ -4,6 +4,8 @@
 
 typedef void *SYMID; // sym*
 
+struct bb;
+
 namespace ir
 {
 
