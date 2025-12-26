@@ -2,7 +2,6 @@
 #include "../src/arena.hpp"
 #include "../src/ast-builder.hpp"
 #include "../src/ast.hpp"
-#include "../src/ast2cfg.hpp"
 #include "../src/basic-block.hpp"
 #include "../src/global.hpp"
 #include "../src/interp.hpp"
@@ -119,8 +118,10 @@ int test_ast(ast::builder &b, ir::builder &ir_builder)
     assert(!suspend);
     assert(ir_builder.current_block == NULL);
 
+    log::set_severity(log::severity::trace);
     backend::interp interp = {};
     interp.exec(block_entry);
+    log::set_severity(log::severity::debug);
 
     return 0;
 }
@@ -128,7 +129,7 @@ int test_ast(ast::builder &b, ir::builder &ir_builder)
 int main()
 {
     log::enable_stacktrace();
-    log::set_severity(log::severity::trace);
+    log::set_severity(log::severity::debug);
 
     // TODO JOSH: Arena size based on page/ physical ram rather than # elements
 
