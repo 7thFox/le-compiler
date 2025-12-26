@@ -9,7 +9,8 @@ CXXFLAGS := -std=c++20 \
 	-Wno-missing-designated-field-initializers\
 	-Wno-multichar \
 	-Wno-reorder-init-list \
-	-Wno-unused-parameter
+	-Wno-unused-parameter \
+	-Wno-c99-designator
 
 CXXFLAGS_NOANALYZER := -Wno-switch
 

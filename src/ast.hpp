@@ -57,8 +57,7 @@ struct exp_binary {
 };
 
 struct exp_ident {
-    str   name;
-    SYMID anno_symbol;
+    str name;
 };
 
 struct exp_literal {

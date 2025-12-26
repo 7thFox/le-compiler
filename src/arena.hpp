@@ -54,10 +54,15 @@ struct arena {
         return ptr;
     }
 
+    T *peek_permissive()
+    {
+        return next - 1;
+    }
+
     T *peek()
     {
         assert(!is_empty());
-        return next - 1;
+        return peek_permissive();
     }
 
     bool is_empty()

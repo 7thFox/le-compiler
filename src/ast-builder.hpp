@@ -19,15 +19,12 @@ struct builder {
     stack<arena<ast::stmt *>>          *ip_blocks;
     stack<arena<ast::_stmt_if_pair *>> *ip_ifs;
 
-    SYMID HACK_symbol;
-
     builder(arena<u8>                          *strs,
             arena<ast::stmt>                   *statements,
             arena<ast::exp>                    *expressions,
             arena<void *>                      *ptr_lists,
             stack<arena<ast::stmt *>>          *ip_blocks,
-            stack<arena<ast::_stmt_if_pair *>> *ip_ifs,
-            SYMID                               HACK_symbol)
+            stack<arena<ast::_stmt_if_pair *>> *ip_ifs)
     {
         this->strs        = strs;
         this->statements  = statements;
@@ -35,7 +32,6 @@ struct builder {
         this->ptr_lists   = ptr_lists;
         this->ip_blocks   = ip_blocks;
         this->ip_ifs      = ip_ifs;
-        this->HACK_symbol = HACK_symbol;
     }
 
     /********************
@@ -219,9 +215,8 @@ struct builder {
 
         auto e = expressions->alloc();
 
-        e->kind              = ast::kind::exp_ident;
-        e->ident.name        = name;
-        e->ident.anno_symbol = HACK_symbol; // TODO JOSH: set by second pass
+        e->kind       = ast::kind::exp_ident;
+        e->ident.name = name;
 
         return e;
     }

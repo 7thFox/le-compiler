@@ -29,34 +29,6 @@ bb *ast2cfg(ir::builder *b, ast::stmt *tree)
 
 void write_stmt(ir::builder *b, ast::stmt *s)
 {
-    if (s->kind == ast::kind::stmt_block) {
-        // block immediately closes the bb for scope change
-        write_stmt_block(b, &s->block);
-        return;
-    }
-
-    if (b->current_block == NULL) {
-        b->start_block();
-    }
-
-    switch (s->kind) {
-    case ast::kind::stmt_assign:
-        write_stmt_assign(b, &s->assign);
-        return;
-    case ast::kind::stmt_ifs:
-        write_stmt_ifs(b, &s->ifs);
-        return;
-    case ast::kind::stmt_local_decl:
-        write_stmt_local_decl(b, &s->local_decl);
-        return;
-    case ast::kind::stmt_return:
-        write_stmt_return(b, &s->return_stmt);
-        return;
-    case ast::kind::stmt_block:
-        break; // handled above
-    }
-
-    log::warnf("Statement kind not handled (%i)", s->kind);
 }
 
 void write_stmt_DBG(ir::builder *b, ast::stmt_DBG *s)
@@ -78,22 +50,6 @@ void write_stmt_assign(ir::builder *b, ast::stmt_assign *s)
 
 void write_stmt_block(ir::builder *b, ast::stmt_block *s)
 {
-    if (b->current_block != NULL) {
-        b->unconditional_branch();
-        b->end_block();
-    }
-
-    for (size_t i = 0; i < s->count; i++) {
-        write_stmt(b, s->statements[i]);
-    }
-    if (s->count == 0) {
-        b->nop();
-    }
-
-    if (b->current_block != NULL) {
-        b->unconditional_branch();
-        b->end_block();
-    }
 }
 
 void write_stmt_ifs(ir::builder *b, ast::stmt_ifs *s)
@@ -144,50 +100,14 @@ void write_stmt_ifs(ir::builder *b, ast::stmt_ifs *s)
 
 void write_stmt_local_decl(ir::builder *b, ast::stmt_local_decl *s)
 {
-    assert(s->name->anno_symbol != NO_SYMBOL);
-
-    // HACK
-    assert(s->type->name.equal("u64"));
-
-    if (s->maybe_expression != NULL) {
-        write_exp(b, s->maybe_expression, exp_read);
-
-        ir::ssa *exp_result = b->ssas->next - 1;
-        assert(exp_result >= b->ssas->head);
-
-        assert(!exp_result->has_flag(ir::ssa_prop::no_value));
-
-        get_symbol(s->name->anno_symbol)->push_ssa(exp_result, b->current_block);
-    }
 }
 
 void write_stmt_return(ir::builder *b, ast::stmt_return *s)
 {
-    ir::ssa *val = NULL;
-    if (s->maybe_expression != NULL) {
-        ir::ssa *before = b->ssas->peek();
-        write_exp(b, s->maybe_expression, exp_read);
-        val = b->ssas->peek();
-        assert(val != before);
-    }
-    b->ret(val);
-    b->end_block();
 }
 
 void write_exp(ir::builder *b, ast::exp *e, exp_mode is_read)
 {
-    switch (e->kind) {
-    case ast::kind::exp_binary:
-        write_exp_binary(b, &e->binary, is_read);
-        return;
-    case ast::kind::exp_ident:
-        write_exp_ident(b, &e->ident, is_read);
-    case ast::kind::exp_literal:
-        write_exp_literal(b, &e->literal, is_read);
-        return;
-    }
-
-    log::warnf("Expression kind not handled (%i)", e->kind);
 }
 
 void write_exp_binary(ir::builder *b, ast::exp_binary *e, exp_mode is_read)
@@ -220,20 +140,20 @@ void write_exp_binary(ir::builder *b, ast::exp_binary *e, exp_mode is_read)
 
 void write_exp_ident(ir::builder *b, ast::exp_ident *e, exp_mode is_read)
 {
-    assert(e->anno_symbol != NO_SYMBOL);
+    // assert(e->anno_symbol != NO_SYMBOL);
 
-    if (!is_read) {
-        get_symbol(e->anno_symbol)->push_ssa(b->ssas->peek(), b->current_block);
-    } else {
-        // TODO JOSH: potential reduce
-        auto sym = get_symbol(e->anno_symbol);
+    // if (!is_read) {
+    //     get_symbol(e->anno_symbol)->push_ssa(b->ssas->peek(), b->current_block);
+    // } else {
+    //     // TODO JOSH: potential reduce
+    //     auto sym = get_symbol(e->anno_symbol);
 
-        b->start_phi(); // TODO: If this doesn't change, update to array copy
-        for (ir::ssa **ssa = sym->_ssas->bottom; ssa < sym->_ssas->next; ssa++) {
-            b->push_phi(*ssa);
-        }
-        b->end_phi();
-    }
+    //     b->start_phi(); // TODO: If this doesn't change, update to array copy
+    //     for (ir::ssa **ssa = sym->_ssas->bottom; ssa < sym->_ssas->next; ssa++) {
+    //         b->push_phi(*ssa);
+    //     }
+    //     b->end_phi();
+    // }
 }
 
 void write_exp_literal(ir::builder *b, ast::exp_literal *e, exp_mode is_read)

@@ -7,6 +7,7 @@
 #include "../src/global.hpp"
 #include "../src/interp.hpp"
 #include "../src/ir-builder.hpp"
+#include "../src/ir-emit.hpp"
 #include "../src/ir.hpp"
 #include "../src/log.hpp"
 #include "../src/map.hpp"
@@ -99,7 +100,24 @@ int test_ast(ast::builder &b, ir::builder &ir_builder)
 
     auto ast = b.end_block();
 
-    auto block_entry = ast2cfg(&ir_builder, ast);
+    // auto block_entry = ast2cfg(&ir_builder, ast);
+    auto block_entry = ir_builder.alloc_block();
+    ir_builder.start_block(block_entry);
+
+    arena<scope_t>          scopes(IDK);
+    arena<sym>              symbols(IDK);
+    arena<stack<ir::ssa *>> symbol_ssas(IDK);
+    arena<ir::ssa *>        symbol_ssa_mem(IDK);
+    symbol_table locals(&scopes, &symbols, &symbol_ssas, &symbol_ssa_mem);
+
+    emit_task        task_mem[1024];
+    stack<emit_task> task_queue(task_mem, 1024);
+    comp_unit        unit;
+    ir_emit          emit(ast, &ir_builder, &task_queue, &locals, &unit);
+
+    bool suspend = emit.run_to_suspend();
+    assert(!suspend);
+    assert(ir_builder.current_block == NULL);
 
     backend::interp interp = {};
     interp.exec(block_entry);
@@ -140,8 +158,8 @@ int main()
     arena<ir::ssa *>        ssa_stacks_mem(IDK);
     symbol_table sym_table(&scopes, &symbols, &ssa_stacks, &ssa_stacks_mem);
 
-    auto root_scope = sym_table.new_scope(NULL);
-    auto HACK       = sym_table.new_symbol(root_scope);
+    // sym_table.new_scope();
+    // auto HACK = sym_table.new_symbol(root_scope);
 
     arena<u8>                 strs(IDK);
     arena<ast::stmt>          statements(IDK);
@@ -149,7 +167,7 @@ int main()
     arena<void *>             ptr_lists(IDK);
     stack<arena<ast::stmt *>> ip_blocks(ip_blocks_mem, MAX_BLOCK_DEPTH);
     stack<arena<ast::_stmt_if_pair *>> ip_ifs(ip_ifs_mem, MAX_CHAINED_IFS);
-    ast::builder ast_builder(&strs, &statements, &expressions, &ptr_lists, &ip_blocks, &ip_ifs, HACK);
+    ast::builder ast_builder(&strs, &statements, &expressions, &ptr_lists, &ip_blocks, &ip_ifs);
 
     // test_ir(ir_builder);
     test_ast(ast_builder, ir_builder);

@@ -2,8 +2,6 @@
 
 #include "global.hpp"
 
-typedef void *SYMID; // sym*
-
 struct bb;
 
 namespace ir
@@ -35,7 +33,7 @@ enum class opcode : u32 {
 struct ssa {
     opcode   op;
     ssa_prop flags;
-    bb      *block;
+    bb      *block; // TODO JOSH: I don't think we need this
 
     union {
         u64       i;
