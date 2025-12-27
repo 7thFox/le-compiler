@@ -145,22 +145,29 @@ void ir_emit::emit_stmt_block(emit_task t)
             return;
         }
 
-        local_symbols->new_scope();
-        *tasks->move_next() = {
-            .type = task_type::STATEMENT,
-            .func = &ir_emit::emit_stmt_block,
-            .step = 1,
-            .stmt = t.stmt,
-        };
+        if (b->current_block->head != b->ssas->next) { // block has at least one instruction
+            auto next = b->alloc_block();
+            b->unconditional_branch(next);
+            b->end_block();
+            local_symbols->new_scope();
+            b->start_block(next, local_symbols->current_scope);
+
+            push_task({
+                .type = task_type::STATEMENT,
+                .func = &ir_emit::emit_stmt_block,
+                .step = 1,
+                .stmt = t.stmt,
+            });
+        }
 
         for (size_t i = 0; i < s->count; i++) {
             // push in reverse order:
-            *tasks->move_next() = {
+            push_task({
                 .type = task_type::STATEMENT,
                 .func = &ir_emit::emit_stmt,
                 .step = 0,
                 .stmt = s->statements[s->count - i - 1],
-            };
+            });
         }
 
         return;
@@ -195,6 +202,7 @@ void ir_emit::emit_stmt_ifs(emit_task t)
             .func             = &ir_emit::emit_stmt_ifs,
             .step             = STEP_MERGE,
             .stmt             = t.stmt,
+            .arg1.dominator   = b->current_block,
             .arg2.merge_block = merge_block,
         });
 
@@ -237,7 +245,15 @@ void ir_emit::emit_stmt_ifs(emit_task t)
         assert(t.arg2.merge_block != NULL);
 
         if (pair->maybe_condition == NULL) {
+            bool block_empty = b->current_block->head == b->ssas->next;
+
             assert(t.arg1.index == s->count - 1);
+            assert(block_empty);
+
+            // re-scope block
+            local_symbols->new_scope();
+            b->current_block->scope = local_symbols->current_scope;
+
             push_task({
                 .type             = task_type::STATEMENT,
                 .func             = &ir_emit::emit_stmt_ifs,
@@ -260,7 +276,10 @@ void ir_emit::emit_stmt_ifs(emit_task t)
             bb *when_false = NULL;
             b->branch(block_br::eq, &when_true, &when_false);
             b->end_block();
-            b->start_block(when_true);
+
+            local_symbols->new_scope();
+            b->start_block(when_true, local_symbols->current_scope);
+
             push_task({
                 .type             = task_type::STATEMENT,
                 .func             = &ir_emit::emit_stmt_ifs,
@@ -284,22 +303,78 @@ void ir_emit::emit_stmt_ifs(emit_task t)
 
         b->unconditional_branch(t.arg2.merge_block);
         b->end_block();
+        local_symbols->end_scope();
+
         if (t.arg1.when_false != NULL) {
             // if statement
-
-            b->start_block(t.arg1.when_false);
+            b->start_block(t.arg1.when_false, local_symbols->current_scope);
         }
 
         return;
     }
     case STEP_MERGE: {
+        assert(t.arg1.dominator != NULL);
         assert(t.arg2.merge_block != NULL);
+
         if (b->current_block != NULL) { // no else
             b->unconditional_branch(t.arg2.merge_block);
             b->end_block();
+            local_symbols->end_scope();
         }
 
-        b->start_block(t.arg2.merge_block);
+        b->start_block(t.arg2.merge_block, local_symbols->current_scope);
+
+        log::tracef("c:%lx m:%lx d:%lx",
+                    local_symbols->current_scope,
+                    t.arg2.merge_block->scope,
+                    t.arg1.dominator->scope);
+        assert(t.arg1.dominator->scope == local_symbols->current_scope);
+        assert(t.arg2.merge_block->scope == local_symbols->current_scope);
+
+        for (scope_t *scope = local_symbols->current_scope; scope != NULL;
+             scope          = scope->parent) {
+            for (auto cur_sym = scope->decl_symbols.bottom;
+                 cur_sym < scope->decl_symbols.next;
+                 cur_sym++) {
+
+                SYMID sym          = *cur_sym;
+                auto  predecessors = t.arg2.merge_block->predecessors;
+
+                ir::ssa         *buff[64];
+                stack<ir::ssa *> fuse(buff, 64);
+                for (auto cur_block = predecessors.bottom;
+                     cur_block < predecessors.next;
+                     cur_block++) {
+                    bb *block = *cur_block;
+
+                    ir::ssa *to_fuse = NULL;
+                    if (block->final_values.try_get(sym, &to_fuse)) {
+                        *fuse.move_next() = to_fuse;
+                    }
+                }
+
+                if (fuse.is_empty()) {
+                    continue;
+                }
+                if (fuse.count() < predecessors.count()) {
+                    // not set by all -- also fuse dominator
+
+                    ir::ssa *to_fuse = NULL;
+                    assert(t.arg1.dominator->final_values.try_get(sym, &to_fuse)); // HACK
+                    *fuse.move_next() = to_fuse;
+                }
+
+                b->start_phi();
+                // process in push order (rather than pop order)
+                for (auto cur_fuse = fuse.next - 1; cur_fuse >= fuse.bottom; cur_fuse--) {
+                    b->push_phi(*cur_fuse);
+                }
+                ir::ssa *fused = b->end_phi();
+                // should be set:
+                b->current_block->final_values.add(sym, fused);
+            }
+        }
+
         return;
     }
     }
@@ -343,7 +418,7 @@ void ir_emit::emit_stmt_local_decl(emit_task t)
 
         auto sym = local_symbols->resolve(s->name->name);
         assert(sym != NOT_RESOLVED);
-        sym->push_ssa(exp_result);
+        b->current_block->final_values.add(sym, exp_result);
         return;
     }
     }
@@ -497,15 +572,28 @@ void ir_emit::emit_exp_ident(emit_task t)
     auto s = &t.exp->ident;
     assert(t.mode != exp_mode::NOT_SET);
 
+    auto sym = local_symbols->resolve(s->name);
+    assert(sym != NOT_RESOLVED);
+
     if (t.mode == exp_mode::READ) {
-        log::noimpl();
+        ir::ssa *val   = NULL;
+        auto     block = b->current_block;
+        while (true) {
+            if (block->final_values.try_get(sym, &val)) {
+                break;
+            }
+            assert(!block->predecessors.is_empty());  // undeclared?
+            assert(block->predecessors.count() == 1); // should have a phi
+            block = *block->predecessors.peek();
+        }
+        b->start_phi();
+        b->push_phi(val);
+        b->end_phi();
     } else {
         assert(t.arg1.ssa_write != NULL);
         assert(!t.arg1.ssa_write->has_flag(ir::ssa_prop::no_value));
 
-        auto sym = local_symbols->resolve(s->name);
-        assert(sym != NOT_RESOLVED);
-        sym->push_ssa(t.arg1.ssa_write);
+        b->current_block->final_values.add(sym, t.arg1.ssa_write);
     }
 }
 

@@ -75,6 +75,7 @@ struct emit_task {
         ir::ssa *ssa_write;
         size_t   index;
         bb      *when_false;
+        bb      *dominator;
     } arg1;
 
     union {

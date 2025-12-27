@@ -2,6 +2,7 @@
 
 #include "ir.hpp"
 #include "map.hpp"
+#include "symbol.hpp"
 
 enum class block_br {
     UNUSED,
@@ -16,6 +17,10 @@ enum class block_br {
 };
 
 struct bb {
+    scope_t              *scope;
+    stack<bb *>           predecessors;
+    map<SYMID, ir::ssa *> final_values;
+
     ir::ssa *head;
     ir::ssa *next;
 

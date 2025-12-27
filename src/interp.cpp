@@ -5,6 +5,11 @@
 namespace backend
 {
 
+interp::interp(arena<map_node<ir::ssa *, u64>> *values_arena)
+    : ssa_values(values_arena)
+{
+}
+
 void interp::exec(bb *block)
 {
     assert(block != NULL);

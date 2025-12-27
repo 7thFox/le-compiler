@@ -9,44 +9,45 @@ namespace ir
 {
 struct builder {
 
-    arena<bb>        *blocks;
-    arena<ir::ssa>   *ssas;
-    arena<ir::ssa *> *phi_lists;
+    arena<bb>                         *blocks;
+    arena<ir::ssa>                    *ssas;
+    arena<ir::ssa *>                  *phi_lists;
+    arena<bb *>                       *block_lists;
+    arena<map_node<SYMID, ir::ssa *>> *value_maps;
 
-    bb *current_block       = NULL;
-    bb *unconditional_block = NULL;
+    bb       *current_block = NULL;
+    ir::ssa **phi_start     = NULL;
 
-    ir::ssa **phi_start = NULL;
-
-    builder(arena<bb> *blocks, arena<ir::ssa> *ssas, arena<ir::ssa *> *phi_lists)
+    builder(arena<bb>                         *blocks,
+            arena<ir::ssa>                    *ssas,
+            arena<ir::ssa *>                  *phi_lists,
+            arena<bb *>                       *block_lists,
+            arena<map_node<SYMID, ir::ssa *>> *value_maps)
     {
-        this->blocks    = blocks;
-        this->ssas      = ssas;
-        this->phi_lists = phi_lists;
+        this->blocks      = blocks;
+        this->ssas        = ssas;
+        this->phi_lists   = phi_lists;
+        this->block_lists = block_lists;
+        this->value_maps  = value_maps;
     }
 
     bb *alloc_block()
     {
-        return blocks->alloc();
+        auto b = blocks->alloc();
+        new (&b->predecessors) stack<bb *>(block_lists->alloc(64), 64);
+        new (&b->final_values) map<SYMID, ir::ssa *>(value_maps);
+        return b;
     }
 
-    void start_block()
-    {
-        auto block = unconditional_block != NULL ? unconditional_block : alloc_block();
-
-        unconditional_block = NULL;
-        start_block(block);
-    }
-
-    void start_block(bb *block)
+    void start_block(bb *block, scope_t *scope)
     {
         assert(block != NULL);
         assert(current_block == NULL);
-        assert(unconditional_block == NULL);
 
-        current_block       = block;
-        current_block->br   = block_br::UNUSED;
-        current_block->head = ssas->next;
+        current_block        = block;
+        current_block->br    = block_br::UNUSED;
+        current_block->head  = ssas->next;
+        current_block->scope = scope;
     }
 
     bb *end_block()
@@ -147,26 +148,20 @@ struct builder {
         current_block->br          = br;
         current_block->block_true  = *when_true;
         current_block->block_false = *when_false;
-    }
 
-    void unconditional_branch()
-    {
-        unconditional_branch(NULL);
+        *(*when_true)->predecessors.move_next()  = current_block;
+        *(*when_false)->predecessors.move_next() = current_block;
     }
 
     void unconditional_branch(bb *next_block)
     {
         assert(current_block != NULL);
         assert(current_block->br == block_br::UNUSED);
-        assert(unconditional_block == NULL);
-
-        if (next_block == NULL) // implicit next block
-        {
-            next_block = unconditional_block = alloc_block();
-        }
 
         current_block->br         = block_br::unconditional;
         current_block->block_true = next_block;
+
+        *next_block->predecessors.move_next() = current_block;
     }
 
     ir::ssa *literal(u64 val)

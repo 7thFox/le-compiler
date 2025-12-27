@@ -1,7 +1,6 @@
 #pragma once
 
 #include "arena.hpp"
-#include "basic-block.hpp"
 #include "global.hpp"
 #include "ir.hpp"
 #include "stack.hpp"
@@ -20,17 +19,13 @@ inline sym *get_symbol(SYMID id)
 }
 
 struct symbol_table {
-    arena<scope_t>          *scopes;
-    arena<sym>              *symbols;
-    arena<stack<ir::ssa *>> *ssa_stacks;
-    arena<ir::ssa *>        *ssa_stacks_mem;
+    arena<scope_t> *scopes;
+    arena<sym>     *symbols;
+    arena<SYMID>   *sym_lists;
 
     scope_t *current_scope;
 
-    symbol_table(arena<scope_t>          *scopes,
-                 arena<sym>              *symbols,
-                 arena<stack<ir::ssa *>> *ssa_stacks,
-                 arena<ir::ssa *>        *ssa_stacks_mem);
+    symbol_table(arena<scope_t> *scopes, arena<sym> *symbols, arena<SYMID> *sym_lists);
 
     void  new_scope();
     void  end_scope();
@@ -39,14 +34,11 @@ struct symbol_table {
 };
 
 struct sym {
-    symbol_table     *table;
-    scope_t          *scope_decl;
-    stack<ir::ssa *> *_ssas;
-    stack<bb *>      *_blocks;
-
-    void push_ssa(ir::ssa *ssa);
+    symbol_table *table;
+    scope_t      *scope_decl;
 };
 
 struct scope_t {
-    scope_t *parent;
+    scope_t     *parent;
+    stack<SYMID> decl_symbols;
 };

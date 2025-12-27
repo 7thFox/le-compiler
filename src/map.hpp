@@ -25,12 +25,13 @@ static constexpr size_t N_BUCKETS = 256;
 
 template <typename TKey, typename TValue>
 struct map {
-    arena<map_node<TKey, TValue>> arena;
-    map_node<TKey, TValue>       *buckets;
+    arena<map_node<TKey, TValue>> *bucket_arena;
+    map_node<TKey, TValue>        *buckets;
 
-    map(size_t max) : arena(max)
+    map(arena<map_node<TKey, TValue>> *bucket_arena)
     {
-        buckets = arena.alloc(N_BUCKETS);
+        this->bucket_arena = bucket_arena;
+        buckets            = bucket_arena->alloc(N_BUCKETS);
     }
 
     void add(TKey key, TValue value)
@@ -39,8 +40,7 @@ struct map {
         bucket_add(key, value, hash, 0, buckets);
     }
 
-    void bucket_add(TKey key, TValue value, size_t hash, int depth,
-                    map_node<TKey, TValue> *bucket)
+    void bucket_add(TKey key, TValue value, size_t hash, int depth, map_node<TKey, TValue> *bucket)
     {
         assert(bucket != NULL);
         assert(depth < 8);
@@ -63,7 +63,7 @@ struct map {
                 return;
             }
 
-            auto new_bucket = arena.alloc(N_BUCKETS);
+            auto new_bucket = bucket_arena->alloc(N_BUCKETS);
             bucket_add(node->leaf.key,
                        node->leaf.value,
                        std::hash<TKey>{}(node->leaf.key),
@@ -83,8 +83,7 @@ struct map {
         return bucket_get(key, value, hash, 0, buckets);
     }
 
-    bool bucket_get(TKey key, TValue *value, size_t hash, int depth,
-                    map_node<TKey, TValue> *bucket)
+    bool bucket_get(TKey key, TValue *value, size_t hash, int depth, map_node<TKey, TValue> *bucket)
     {
         assert(depth < 8);
         assert(bucket != NULL);
