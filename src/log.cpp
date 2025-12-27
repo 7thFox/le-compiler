@@ -13,13 +13,6 @@ static FILE    *_logfile       = stderr;
 static bool     _color_enabled = true;
 static severity _severity      = severity::info;
 
-#define COLOR_ERROR "\x1b[31m"
-#define COLOR_WARN "\x1b[33m"
-#define COLOR_INFO "\x1b[36m"
-#define COLOR_DEBUG "\x1b[35m"
-#define COLOR_TRACE "\x1b[90m"
-#define COLOR_CLEAR "\x1b[0m"
-
 #define _logf(l, U, prefix)                      \
     void l##f(const char *__restrict__ fmt, ...) \
     {                                            \

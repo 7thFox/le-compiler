@@ -6,6 +6,13 @@
 namespace log
 {
 
+constexpr const char *COLOR_ERROR = "\x1b[31m";
+constexpr const char *COLOR_WARN  = "\x1b[33m";
+constexpr const char *COLOR_INFO  = "\x1b[36m";
+constexpr const char *COLOR_DEBUG = "\x1b[35m";
+constexpr const char *COLOR_TRACE = "\x1b[90m";
+constexpr const char *COLOR_CLEAR = "\x1b[0m";
+
 enum class severity {
     all,
 

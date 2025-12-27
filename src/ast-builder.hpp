@@ -140,21 +140,6 @@ struct builder {
         return s;
     }
 
-    stmt *return_stmt()
-    {
-        return return_stmt(NULL);
-    }
-
-    stmt *return_stmt(ast::exp *exp)
-    {
-        auto s = statements->alloc();
-
-        s->kind                         = ast::kind::stmt_return;
-        s->return_stmt.maybe_expression = exp;
-
-        return s;
-    }
-
     stmt *local_decl(exp_ident *type, exp_ident *name)
     {
         return local_decl(type, name, NULL);
@@ -171,6 +156,28 @@ struct builder {
         s->local_decl.type             = type;
         s->local_decl.name             = name;
         s->local_decl.maybe_expression = expression;
+
+        return s;
+    }
+
+    stmt *nop()
+    {
+        auto s  = statements->alloc();
+        s->kind = ast::kind::stmt_nop;
+        return s;
+    }
+
+    stmt *return_stmt()
+    {
+        return return_stmt(NULL);
+    }
+
+    stmt *return_stmt(ast::exp *exp)
+    {
+        auto s = statements->alloc();
+
+        s->kind                         = ast::kind::stmt_return;
+        s->return_stmt.maybe_expression = exp;
 
         return s;
     }

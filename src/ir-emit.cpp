@@ -75,17 +75,20 @@ void ir_emit::emit_stmt(emit_task t)
     case ast::kind::stmt_assign:
         emit_stmt_assign(t);
         return;
+    case ast::kind::stmt_block:
+        emit_stmt_block(t);
+        return;
     case ast::kind::stmt_ifs:
         emit_stmt_ifs(t);
         return;
     case ast::kind::stmt_local_decl:
         emit_stmt_local_decl(t);
         return;
+    case ast::kind::stmt_nop:
+        b->nop();
+        return;
     case ast::kind::stmt_return:
         emit_stmt_return(t);
-        return;
-    case ast::kind::stmt_block:
-        emit_stmt_block(t);
         return;
     }
 
@@ -300,8 +303,9 @@ void ir_emit::emit_stmt_ifs(emit_task t)
     case STEP_AFTER_STATEMENT: {
 
         assert(t.arg2.merge_block != NULL);
-
-        b->unconditional_branch(t.arg2.merge_block);
+        if (b->current_block->br == block_br::UNUSED) { // else it's a return
+            b->unconditional_branch(t.arg2.merge_block);
+        }
         b->end_block();
         local_symbols->end_scope();
 
@@ -365,8 +369,7 @@ void ir_emit::emit_stmt_ifs(emit_task t)
                 }
 
                 b->start_phi();
-                // process in push order (rather than pop order)
-                for (auto cur_fuse = fuse.next - 1; cur_fuse >= fuse.bottom; cur_fuse--) {
+                for (auto cur_fuse = fuse.bottom; cur_fuse < fuse.next; cur_fuse++) {
                     b->push_phi(*cur_fuse);
                 }
                 ir::ssa *fused = b->end_phi();
@@ -434,7 +437,6 @@ void ir_emit::emit_stmt_return(emit_task t)
     case 0: {
         if (s->maybe_expression == NULL) {
             b->ret(NULL);
-            b->end_block();
             return;
         }
         push_task({
@@ -461,7 +463,6 @@ void ir_emit::emit_stmt_return(emit_task t)
         assert(!val->has_flag(ir::ssa_prop::no_value));
 
         b->ret(val);
-        b->end_block();
         return;
     }
     }

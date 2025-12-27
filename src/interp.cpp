@@ -81,19 +81,24 @@ void interp::_exec(block_context &ctx)
                 ir::ssa *x = ssa->left.ssa_list[i];
                 assert(x != NULL);
 
-                buff += snprintf(buff,
-                                 sizeof(param_buff) - (buff - param_buff),
-                                 "$%04lx ",
-                                 (u64)x & 0xFFFF);
                 u64 val;
-                if (ssa_values.try_get(x, &val)) {
-                    if (found_phi != NULL) {
-                        log::fatalf("Multiple Phi found: $%04lx, $%04lx",
-                                    (u64)found_phi & 0xFFFF,
-                                    (u64)x & 0xFFFF);
-                    }
+                // phi is ordered. the first one is the correct one. only continuing to print.
+                if (!found_phi && ssa_values.try_get(x, &val)) {
                     final     = val;
                     found_phi = x;
+
+                    buff += snprintf(buff,
+                                     sizeof(param_buff) - (buff - param_buff),
+                                     "%s$%04lx %s",
+                                     log::COLOR_DEBUG,
+                                     (u64)x & 0xFFFF,
+                                     log::COLOR_TRACE);
+                } else {
+
+                    buff += snprintf(buff,
+                                     sizeof(param_buff) - (buff - param_buff),
+                                     "$%04lx ",
+                                     (u64)x & 0xFFFF);
                 }
             }
             assert(found_phi);

@@ -35,6 +35,7 @@ enum class kind {
     stmt_block,
     stmt_ifs,
     stmt_local_decl,
+    stmt_nop,
     stmt_return,
     _stmt_raw_if,
 };

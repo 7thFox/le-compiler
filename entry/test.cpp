@@ -86,6 +86,15 @@ int test_ast(ast::builder &b, ir::builder &ir_builder, symbol_table &locals)
         b.assign(b.ident("x"),
                  b.literal(0xCAFE)));
 
+    b.push_if(
+        b.binary_exp(
+            b.binary_exp(b.literal(4),
+                         ast::op::add,
+                         b.literal(6)),
+            ast::op::equals,
+            b.literal(50)),
+        b.nop());
+
     b.push_else(b.assign(b.ident("x"),
                          b.literal(0xBABE)));
 
